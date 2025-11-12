@@ -1,0 +1,12 @@
+In this file, the inputs and outputs of the Festo Measuring Station can be found
+
+Inputs:
+Sensor 1 - Sensor to detect product on conveyer belt - Postition of gripper
+Sensor 2 - Sensor to detect product on conveyer belt - Position of RFID Reader
+Sensor 3 - Sensor to detect product on conveyer belt - Position at end of conveyer belt 
+
+
+
+
+
+Outputs:
