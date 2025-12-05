@@ -1,7 +1,7 @@
 %QX 0.0 and 0.1 = Motorloopband
 
-%QX 10.0 = Gripper rotate weight
-%QX 10.1 = Gripper rotate weight
+%QX 10.0 = Gripper rotate Height
+%QX 10.1 = Gripper rotate Weight
 %QX 10.4 = Gripper open / close
 %QX 10.6 = Height cilinder
 
@@ -16,3 +16,33 @@
 %IX 0.4 = sensor gripper at weight
 %IX 0.5 = sensor at conveyer
 %IX 0.6 = sensor RFID reader
+
+```plantuml
+@startjson
+<style>
+  .h1 {
+    BackGroundColor blue
+    FontColor white
+    FontStyle bold
+    }
+</style>
+#highlight "IO" <<h1>>
+{
+"IO":"Adress",
+"Motor Conveyer"                :"%QX0.0 & %QX0.1",
+"Gripper rotate Height"         :"%QX10.0",
+"Gripper rotate Weight"         :"%QX10.1",
+"Gripper open / close"          :"%QX10.4",
+"Height cilinder"               :"%QX10.6",
+"Gripper omhoog/omlaag"         :"%QX11.0",
+"Load sensor"                   :"%IW1",
+"Sensor conveyer at gripper"    :"%IX0.0",
+"Sensor gripper open / close"   :"%IX0.1",
+"Sensor gripper up / down"      :"%IX0.2",
+"Sensor gripper at height"      :"%IX0.3",
+"Sensor gripper at weight"      :"%IX0.4",
+"Sensor at conveyer"            :"%IX0.5",
+"Sensor conveyer at RFID reader":"%IX0.6"
+}
+@endjson
+```
