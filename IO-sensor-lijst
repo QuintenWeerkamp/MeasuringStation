@@ -1,0 +1,18 @@
+%QX 0.0 and 0.1 = Motorloopband
+
+%QX 10.0 = Gripper rotate weight
+%QX 10.1 = Gripper rotate weight
+%QX 10.4 = Gripper open / close
+%QX 10.6 = Height cilinder
+
+%QX 11.0 = Gripper omhoog/omlaag
+
+%IW 1 = Lood sensor
+
+%IX 0.0 = sensor conveyer at gripper
+%IX 0.1 = sensor gripper open / close
+%IX 0.2 = sensor gripper up / down
+%IX 0.3 = sensor gripper at height
+%IX 0.4 = sensor gripper at weight
+%IX 0.5 = sensor at conveyer
+%IX 0.6 = sensor RFID reader
