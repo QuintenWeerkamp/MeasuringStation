@@ -1,0 +1,46 @@
+| Adres   | Omschrijving                          | Korte naam   |
+| ------- | ------------------------------------- | ------------ |
+| %QX0.0  | Motorloopband vooruit                 | MOT_CONV_FWD |
+| %QX0.1  | Motorloopband achteruit / 2e richting | MOT_CONV_REV |
+| %QX10.0 | Gripper rotatie naar hoogte           | GRIP_ROT_HGT |
+| %QX10.1 | Gripper rotatie naar gewicht          | GRIP_ROT_WGT |
+| %QX10.4 | Gripper open / dicht                  | GRIP_OPCL    |
+| %QX10.6 | Hoogtecilinder                        | CYL_HGT      |
+| %QX11.0 | Gripper omhoog / omlaag               | GRIP_UPDN    |
+
+| Adres  | Omschrijving                   | Korte naam    |
+| ------ | ------------------------------ | ------------- |
+| %IW1   | Loodsensor (analoog)           | SEN_LOAD      |
+| %IX0.0 | Conveyor sensor bij gripper    | SEN_CONV_POS  |
+| %IX0.1 | Gripper open / dicht sensor    | SEN_GRIP_OPCL |
+| %IX0.2 | Gripper omhoog / omlaag sensor | SEN_GRIP_UPDN |
+| %IX0.3 | Gripper op hoogte-positie      | SEN_GRIP_HGT  |
+| %IX0.4 | Gripper op gewicht-positie     | SEN_GRIP_WGT  |
+| %IX0.5 | Gripper bij conveyor sensor    | SEN_GRIP_CONV |
+| %IX0.6 | RFID reader sensor             | SEN_RFID      |
+
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+CODE
+--------------------------------------------------------------------------------------------------------------------------------------
+PROGRAM PLC_PRG
+VAR
+MOT_CONV_FWD    AT %QX0.0  : BOOL := FALSE;
+MOT_CONV_REV    AT %QX0.1  : BOOL := FALSE;
+GRIP_ROT_HGT    AT %QX10.0 : BOOL := FALSE;
+GRIP_ROT_WGT    AT %QX10.1 : BOOL := FALSE;
+GRIP_OPCL       AT %QX10.4 : BOOL := FALSE;
+CYL_HGT         AT %QX10.6 : BOOL := FALSE;
+GRIP_UPDN       AT %QX11.0 : BOOL := FALSE;
+
+SEN_LOAD        AT %IW1    : INT;       
+
+SEN_CONV_POS    AT %IX0.0  : BOOL := FALSE;
+SEN_GRIP_OPCL   AT %IX0.1  : BOOL := FALSE;
+SEN_GRIP_UPDN   AT %IX0.2  : BOOL := FALSE;
+SEN_GRIP_HGT    AT %IX0.3  : BOOL := FALSE;
+SEN_GRIP_WGT    AT %IX0.4  : BOOL := FALSE;
+SEN_GRIP_CONV   AT %IX0.5  : BOOL := FALSE;
+SEN_RFID        AT %IX0.6  : BOOL := FALSE;
+END_VAR
