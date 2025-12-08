@@ -1,1 +1,410 @@
 
+TYPE E_MS_STATE :
+(
+    MS_INIT,               // Initialisatie / homing
+    MS_WAIT_PART,          // Wachten op onderdeel op conveyor
+
+    MS_PICK_MOVE_ABOVE,    // Gripper boven onderdeel brengen
+    MS_PICK_DOWN,          // Gripper naar beneden
+    MS_PICK_CLOSE,         // Gripper sluiten (oppakken)
+    MS_PICK_UP,            // Gripper omhoog met onderdeel
+
+    MS_MOVE_TO_HGT,        // Bewegen naar Height Station
+    MS_PLACE_HGT_DOWN,     // Naar beneden bij Height Station
+    MS_PLACE_HGT_OPEN,     // Gripper openen (onderdeel neerleggen)
+    MS_PLACE_HGT_UP,       // Gripper omhoog (veilige hoogte)
+    MS_MEAS_HGT_WAIT,      // Wachten/stabiliseren & hoogte meten
+
+    MS_PICK_HGT_DOWN,      // Naar beneden bij Height Station
+    MS_PICK_HGT_CLOSE,     // Gripper sluiten (onderdeel weer pakken)
+    MS_PICK_HGT_UP,        // Gripper omhoog
+
+    MS_MOVE_TO_WGT,        // Bewegen naar Weight Station
+    MS_PLACE_WGT_DOWN,     // Naar beneden bij Weight Station
+    MS_PLACE_WGT_OPEN,     // Gripper openen (op weegschaal)
+    MS_PLACE_WGT_UP,       // Gripper omhoog
+    MS_MEAS_WGT_WAIT,      // Wachten/stabiliseren & gewicht meten
+
+    MS_PICK_WGT_DOWN,      // Naar beneden bij Weight Station
+    MS_PICK_WGT_CLOSE,     // Sluiten, onderdeel oppakken
+    MS_PICK_WGT_UP,        // Omhoog
+
+    MS_MOVE_TO_CONV,       // Terug naar conveyor
+    MS_PLACE_CONV_DOWN,    // Naar beneden boven transportband
+    MS_PLACE_CONV_OPEN,    // Gripper openen (onderdeel neerleggen)
+    MS_PLACE_CONV_UP,      // Gripper omhoog (home)
+
+    MS_RFID_MOVE,          // Conveyor loopt langs RFID
+    MS_ERROR               // Foutstatus (placeholder)
+) := MS_INIT;               // Initialisatie / homing
+END_TYPE
+
+
+---------------------
+PROGRAM PLC_PRG
+VAR
+    // ------------------- I/O MAPPING -------------------
+    // Outputs
+    MOT_CONV_FWD    AT %QX0.0  : BOOL := FALSE;   // Motor loopband vooruit
+    MOT_CONV_REV    AT %QX0.1  : BOOL := FALSE;   // Motor loopband achteruit (niet gebruikt)
+    GRIP_ROT_HGT    AT %QX10.0 : BOOL := FALSE;   // Rotatie naar Height Station
+    GRIP_ROT_WGT    AT %QX10.1 : BOOL := FALSE;   // Rotatie naar Weight Station
+    GRIP_OPCL       AT %QX10.4 : BOOL := FALSE;   // FALSE=open, TRUE=dicht (aanname)
+    CYL_HGT         AT %QX10.6 : BOOL := FALSE;   // Hoogtecilinder voor meting
+    GRIP_UPDN       AT %QX11.0 : BOOL := FALSE;   // FALSE=omhoog, TRUE=omlaag (aanname)
+
+    // Inputs
+    SEN_LOAD        AT %IW1    : INT;             // Analoge meetwaarde (hoogte/gewicht)
+    SEN_CONV_POS    AT %IX0.0  : BOOL := FALSE;   // Conveyor sensor bij gripper
+    SEN_GRIP_OPCL   AT %IX0.1  : BOOL := FALSE;   // Gripper open/dicht sensor (niet hard gebruikt)
+    SEN_GRIP_UPDN   AT %IX0.2  : BOOL := FALSE;   // TRUE = gripper beneden
+    SEN_GRIP_HGT    AT %IX0.3  : BOOL := FALSE;   // Gripper op hoogte-positie
+    SEN_GRIP_WGT    AT %IX0.4  : BOOL := FALSE;   // Gripper op gewicht-positie
+    SEN_GRIP_CONV   AT %IX0.5  : BOOL := FALSE;   // Gripper bij conveyor/pick-positie
+    SEN_RFID        AT %IX0.6  : BOOL := FALSE;   // RFID reader sensor
+
+    // ------------------- INTERNE VARIABELEN -------------------
+    eState          : E_MS_STATE := MS_INIT;
+
+    // Timer voor meet-stabilisatie (hoogte/gewicht)
+    bMeasTimerEnable: BOOL := FALSE;
+    tMeasTimer      : TON;
+
+    // Opslag meetwaarden (voorbeeld)
+    rHeightValue    : REAL := 0.0;
+    rWeightValue    : REAL := 0.0;
+END_VAR
+
+-----------------------
+IF (eState = MS_MEAS_HGT_WAIT) OR (eState = MS_MEAS_WGT_WAIT) THEN
+    bMeasTimerEnable := TRUE;
+ELSE
+    bMeasTimerEnable := FALSE;
+END_IF;
+
+// TON aanroepen
+tMeasTimer(IN := bMeasTimerEnable, PT := T#1S);   // 1 seconde stabilisatietijd
+
+
+// ------------------------------------------------------------
+// Default waarden outputs (veilige basis)
+// ------------------------------------------------------------
+MOT_CONV_FWD := FALSE;
+MOT_CONV_REV := FALSE;
+
+GRIP_ROT_HGT := FALSE;
+GRIP_ROT_WGT := FALSE;
+
+GRIP_OPCL    := FALSE;   // standaard open
+GRIP_UPDN    := FALSE;   // standaard omhoog
+CYL_HGT      := FALSE;   // hoogtecilinder ingetrokken
+
+
+// ------------------------------------------------------------
+// STATE MACHINE
+// ------------------------------------------------------------
+CASE eState OF
+
+    // ----------------- INIT -----------------
+    MS_INIT:
+        // Gripper naar veilige home: boven conveyor, open
+        // (we gaan ervan uit dat mechanica dit al ongeveer doet;
+        //  hier wachten we totdat de sensoren dat bevestigen)
+        GRIP_OPCL := FALSE;       // open
+        GRIP_UPDN := TRUE;       // omhoog
+
+        // Rotatie-uitgangen uit = positie bij conveyor
+        IF SEN_GRIP_CONV AND (NOT SEN_GRIP_UPDN) THEN
+            // Als gripper boven conveyor staat en omhoog is,
+            // kunnen we starten met de normale cyclus.
+            eState := MS_WAIT_PART;
+        END_IF;
+
+
+    // ----------------- WACHTEN OP ONDERDEEL -----------------
+    MS_WAIT_PART:
+        MOT_CONV_FWD := TRUE;     // transportband loopt
+
+        IF SEN_CONV_POS THEN
+            // Onderdeel is aangekomen onder de gripper
+            MOT_CONV_FWD := FALSE;    // band stoppen
+            eState := MS_PICK_MOVE_ABOVE;
+        END_IF;
+
+
+    // ----------------- PICK-UP BOVEN CONVEYOR -----------------
+    MS_PICK_MOVE_ABOVE:
+        // Rotatie naar conveyor-positie (geen GRIP_ROT_HGT/WGT actief)
+        GRIP_OPCL := FALSE;           // gripper open
+        GRIP_UPDN := FALSE;           // omhoog blijven
+
+        IF SEN_GRIP_CONV AND (NOT SEN_GRIP_UPDN) THEN
+            // Boven onderdeel, omhoog
+            eState := MS_PICK_DOWN;
+        END_IF;
+
+
+    MS_PICK_DOWN:
+        GRIP_OPCL := FALSE;           // open laten
+        GRIP_UPDN := TRUE;            // naar beneden
+
+        IF SEN_GRIP_UPDN THEN
+            // Beneden bij onderdeel
+            eState := MS_PICK_CLOSE;
+        END_IF;
+
+
+    MS_PICK_CLOSE:
+        GRIP_UPDN := TRUE;            // beneden blijven
+        GRIP_OPCL := TRUE;            // dicht (onderdeel pakken)
+
+        // Eventueel hier SEN_GRIP_OPCL checken, nu direct door:
+        eState := MS_PICK_UP;
+
+
+    MS_PICK_UP:
+        GRIP_OPCL := TRUE;            // dicht houden
+        GRIP_UPDN := FALSE;           // omhoog
+
+        IF NOT SEN_GRIP_UPDN THEN
+            // Omhoog met onderdeel
+            eState := MS_MOVE_TO_HGT;
+        END_IF;
+
+
+    // ----------------- NAAR HEIGHT STATION -----------------
+    MS_MOVE_TO_HGT:
+        GRIP_OPCL   := TRUE;          // onderdeel vast
+        GRIP_UPDN   := FALSE;         // in hoge (veilige) positie
+        GRIP_ROT_HGT := TRUE;         // beweeg naar Height Station
+
+        IF SEN_GRIP_HGT THEN
+            // Aangekomen bij hoogte-positie
+            eState := MS_PLACE_HGT_DOWN;
+        END_IF;
+
+
+    MS_PLACE_HGT_DOWN:
+        GRIP_ROT_HGT := TRUE;         // op positie houden
+        GRIP_UPDN    := TRUE;         // naar beneden met onderdeel
+        GRIP_OPCL    := TRUE;         // nog dicht
+
+        IF SEN_GRIP_UPDN THEN
+            eState := MS_PLACE_HGT_OPEN;
+        END_IF;
+
+
+    MS_PLACE_HGT_OPEN:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := TRUE;         // beneden blijven
+        GRIP_OPCL    := FALSE;        // open → onderdeel neerleggen
+
+        // Hier zouden we desnoods op SEN_GRIP_OPCL kunnen wachten
+        eState := MS_PLACE_HGT_UP;
+
+
+    MS_PLACE_HGT_UP:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := FALSE;        // omhoog naar veilige hoogte
+        GRIP_OPCL    := FALSE;        // open blijven
+
+        IF NOT SEN_GRIP_UPDN THEN
+            // Boven het onderdeel, meetpositie vrij
+            eState := MS_MEAS_HGT_WAIT;
+        END_IF;
+
+
+    // ----------------- HOOGTE METEN -----------------
+    MS_MEAS_HGT_WAIT:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := FALSE;        // gripper hoog
+        GRIP_OPCL    := FALSE;        // open
+
+        CYL_HGT      := TRUE;         // hoogtecilinder activeren (aanname)
+
+        // Wachten tot timer voltooid is (stabilisatie)
+        IF tMeasTimer.Q THEN
+            // Hoogtewaarde inlezen (voorbeeld)
+            rHeightValue := TO_REAL(SEN_LOAD);
+
+            CYL_HGT := FALSE;         // cilinder terug
+            eState  := MS_PICK_HGT_DOWN;
+        END_IF;
+
+
+    // ----------------- ONDERDEEL WEER OPPAKKEN (HEIGHT STATION) -----------------
+    MS_PICK_HGT_DOWN:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := TRUE;         // naar beneden
+        GRIP_OPCL    := FALSE;        // open
+
+        IF SEN_GRIP_UPDN THEN
+            eState := MS_PICK_HGT_CLOSE;
+        END_IF;
+
+
+    MS_PICK_HGT_CLOSE:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := TRUE;         // beneden
+        GRIP_OPCL    := TRUE;         // sluiten → onderdeel pakken
+
+        eState := MS_PICK_HGT_UP;
+
+
+    MS_PICK_HGT_UP:
+        GRIP_ROT_HGT := TRUE;
+        GRIP_UPDN    := FALSE;        // omhoog
+        GRIP_OPCL    := TRUE;         // dicht houden
+
+        IF NOT SEN_GRIP_UPDN THEN
+            eState := MS_MOVE_TO_WGT;
+        END_IF;
+
+
+    // ----------------- NAAR WEIGHT STATION -----------------
+    MS_MOVE_TO_WGT:
+        GRIP_OPCL    := TRUE;
+        GRIP_UPDN    := FALSE;        // hoog
+        GRIP_ROT_WGT := TRUE;         // naar Weight Station
+
+        IF SEN_GRIP_WGT THEN
+            eState := MS_PLACE_WGT_DOWN;
+        END_IF;
+
+
+    MS_PLACE_WGT_DOWN:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := TRUE;         // naar beneden
+        GRIP_OPCL    := TRUE;         // dicht
+
+        IF SEN_GRIP_UPDN THEN
+            eState := MS_PLACE_WGT_OPEN;
+        END_IF;
+
+
+    MS_PLACE_WGT_OPEN:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := TRUE;         // beneden
+        GRIP_OPCL    := FALSE;        // onderdeel op weegschaal neerleggen
+
+        eState := MS_PLACE_WGT_UP;
+
+
+    MS_PLACE_WGT_UP:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := FALSE;        // omhoog
+        GRIP_OPCL    := FALSE;
+
+        IF NOT SEN_GRIP_UPDN THEN
+            eState := MS_MEAS_WGT_WAIT;
+        END_IF;
+
+
+    // ----------------- GEWICHT METEN -----------------
+    MS_MEAS_WGT_WAIT:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := FALSE;
+        GRIP_OPCL    := FALSE;
+
+        // Weegschaal krijgt tijd om te stabiliseren
+        IF tMeasTimer.Q THEN
+            rWeightValue := TO_REAL(SEN_LOAD);   // gewicht opslaan
+            eState       := MS_PICK_WGT_DOWN;
+        END_IF;
+
+
+    // ----------------- ONDERDEEL WEER OPPAKKEN (WEIGHT STATION) -----------------
+    MS_PICK_WGT_DOWN:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := TRUE;
+        GRIP_OPCL    := FALSE;
+
+        IF SEN_GRIP_UPDN THEN
+            eState := MS_PICK_WGT_CLOSE;
+        END_IF;
+
+
+    MS_PICK_WGT_CLOSE:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := TRUE;
+        GRIP_OPCL    := TRUE;         // sluiten
+
+        eState := MS_PICK_WGT_UP;
+
+
+    MS_PICK_WGT_UP:
+        GRIP_ROT_WGT := TRUE;
+        GRIP_UPDN    := FALSE;
+        GRIP_OPCL    := TRUE;
+
+        IF NOT SEN_GRIP_UPDN THEN
+            eState := MS_MOVE_TO_CONV;
+        END_IF;
+
+
+    // ----------------- TERUG NAAR CONVEYOR -----------------
+    MS_MOVE_TO_CONV:
+        // Geen rotatie-uitgangen → terug naar conveyor/home
+        GRIP_OPCL := TRUE;
+        GRIP_UPDN := FALSE;
+
+        IF SEN_GRIP_CONV THEN
+            eState := MS_PLACE_CONV_DOWN;
+        END_IF;
+
+
+    MS_PLACE_CONV_DOWN:
+        GRIP_UPDN := TRUE;            // naar beneden boven transportband
+        GRIP_OPCL := TRUE;            // dicht
+
+        IF SEN_GRIP_UPDN THEN
+            eState := MS_PLACE_CONV_OPEN;
+        END_IF;
+
+
+    MS_PLACE_CONV_OPEN:
+        GRIP_UPDN := TRUE;
+        GRIP_OPCL := FALSE;           // onderdeel neerleggen op band
+
+        eState := MS_PLACE_CONV_UP;
+
+
+    MS_PLACE_CONV_UP:
+        GRIP_UPDN := FALSE;           // gripper terug omhoog
+        GRIP_OPCL := FALSE;           // open blijven
+
+        IF NOT SEN_GRIP_UPDN THEN
+            // Terug in home-positie boven conveyor → band weer laten lopen
+            eState := MS_RFID_MOVE;
+        END_IF;
+
+
+    // ----------------- CONVEYOR + RFID -----------------
+    MS_RFID_MOVE:
+        MOT_CONV_FWD := TRUE;         // product gaat verder de lijn op
+
+        // Wachten tot product langs RFID is geweest
+        IF SEN_RFID THEN
+            // Hier zou je eventueel data wegschrijven
+            // Nieuwe cyclus starten
+            MOT_CONV_FWD := FALSE;    // kort stoppen, desnoods laten lopen
+            eState := MS_WAIT_PART;
+        END_IF;
+
+
+    // ----------------- ERROR -----------------
+    MS_ERROR:
+        // In foutstatus alles veilig uitzetten
+        MOT_CONV_FWD := FALSE;
+        MOT_CONV_REV := FALSE;
+
+        GRIP_ROT_HGT := FALSE;
+        GRIP_ROT_WGT := FALSE;
+        GRIP_OPCL    := FALSE;
+        GRIP_UPDN    := FALSE;
+        CYL_HGT      := FALSE;
+
+        // Reset naar INIT kan bv. op een aparte reset-ingang gebeuren
+        // (nog niet geïmplementeerd)
+
+END_CASE;
