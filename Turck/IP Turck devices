@@ -1,0 +1,5 @@
+
+Device              IP                  MAC                 omschrijving
+TBEN-S2-2RFID-4DXP  192.168.178.30      00:07:46:8F:6B:53x  rfid
+TBEN-S2-4IOL        192.168.178.31      00:07:46:A7:1B:75   IO-Link
+CPX PLC             192.168.178.21                          PLC
