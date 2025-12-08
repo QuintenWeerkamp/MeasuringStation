@@ -7,7 +7,7 @@
 
 %QX 11.0 = Gripper omhoog/omlaag
 
-%IW 1 = Lood sensor
+%IW 1 = Loadcell
 
 %IX 0.0 = sensor conveyer at gripper
 %IX 0.1 = sensor gripper open / close
