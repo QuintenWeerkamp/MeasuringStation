@@ -1,7 +1,7 @@
 %QX 0.0 and 0.1 = Motorloopband
 
-%QX 10.0 = Gripper rotate Height
-%QX 10.1 = Gripper rotate Weight
+%QX 10.0 = Gripper rotate Weight
+%QX 10.1 = Gripper rotate Height
 %QX 10.4 = Gripper open / close
 %QX 10.6 = Height cilinder
 
