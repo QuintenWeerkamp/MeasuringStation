@@ -10,6 +10,7 @@
     <TypeSimple name="T_BIT_X_1" size="1" swapsize="0" typeclass="Bool" iecname="BIT" bitoffset="1" />
     <TypeSimple name="T_BIT_X_4" size="1" swapsize="0" typeclass="Bool" iecname="BIT" bitoffset="4" />
     <TypeSimple name="T_BIT_X_6" size="1" swapsize="0" typeclass="Bool" iecname="BIT" bitoffset="6" />
+    <TypeSimple name="T_BOOL" size="1" swapsize="0" typeclass="Bool" iecname="BOOL" />
     <TypeSimple name="T_WORD" size="2" swapsize="2" typeclass="Word" iecname="WORD" />
   </TypeList>
   <NodeList>
@@ -22,7 +23,13 @@
         <Node name="GripperOpen" type="T_BIT_X_4" access="ReadWrite" directaddress="%QX10.4" />
         <Node name="GripperToHeight" type="T_BIT_X_1" access="ReadWrite" directaddress="%QX10.1" />
         <Node name="GripperToWeight" type="T_BIT_X_0" access="ReadWrite" directaddress="%QX10.0" />
+        <Node name="HeightFixed" type="T_WORD" access="ReadWrite" />
         <Node name="LoadCell" type="T_WORD" access="Read" directaddress="%IW1" />
+        <Node name="Measured_height" type="T_WORD" access="ReadWrite" />
+        <Node name="RFID_Entry" type="T_BOOL" access="ReadWrite" />
+        <Node name="RFID_Finished" type="T_BOOL" access="ReadWrite" />
+        <Node name="sConGripper" type="T_BIT_X_0" access="Read" directaddress="%IX0.0" />
+        <Node name="sConRFID" type="T_BIT_X_6" access="Read" directaddress="%IX0.6" />
         <Node name="WeightPart" type="T_WORD" access="ReadWrite" />
       </Node>
     </Node>
